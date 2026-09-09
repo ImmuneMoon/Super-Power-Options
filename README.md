@@ -29,13 +29,6 @@ And it lets you do it in **seconds, minutes, or hours**. Built with a sleek dark
 4. Watch the progress bar count down.
 5. Cancel at any time if you change your mind!
 
-## ☕ Support the Project
-
-If you find this extension helpful and want to support further development by Fulllion Creative Works, consider leaving a tip!
-
-* [Donate via PayPal](https://www.paypal.com/donate/?hosted_button_id=LCDZX75HR4CLC)
-* [Support on Ko-fi](https://ko-fi.com/fulllion)
-
 ---
 © 2026 Fulllion Creative Works. All rights reserved.
 
@@ -70,3 +63,11 @@ The output `.exe` will appear in the `/dist` directory with all required assets 
 
 ## 📜 License
 MIT License
+
+
+## ☕ Support the Project
+
+If you find this extension helpful and want to support further development by Fulllion Creative Works, consider leaving a tip!
+
+* [Donate via PayPal](https://www.paypal.com/donate/?hosted_button_id=LCDZX75HR4CLC)
+* [Support on Ko-fi](https://ko-fi.com/fulllion)
