@@ -104,7 +104,7 @@ class PowerApp:
         self.time_entry.pack(side="left", padx=(0, 10))
         self.time_entry.insert(0, "15")
         
-        self.unit_combobox = ctk.CTkComboBox(input_frame, width=120, values=["seconds", "minutes", "hours", "days", "weeks", "months", "years"], font=ctk.CTkFont(size=16))
+        self.unit_combobox = ctk.CTkComboBox(input_frame, width=120, values=["seconds", "minutes", "hours", "days", "weeks", "months", "years"], font=ctk.CTkFont(size=16), state="readonly")
         self.unit_combobox.set("minutes")
         self.unit_combobox.pack(side="left")
         
