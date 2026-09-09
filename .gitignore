@@ -1,0 +1,30 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+ENV/
+.env
+
+# PyInstaller
+build/
+dist/
+*.manifest
+*.spec
+
+# Exception: keep the specific spec file used for building
+!SuperPowerOptions/Super_Power_Options.spec
+!Super_Power_Options.spec
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Archives and build artifacts
+*.zip
+*.tar.gz
+*.rar
+*.exe
