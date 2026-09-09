@@ -15,9 +15,10 @@ a = Analysis(
     datas=[
         ('assets/icon.ico', 'assets'),
         ('assets/alert.wav', 'assets'),
+        ('assets/*.png', 'assets'),
         (customtkinter_path, 'customtkinter')
     ],
-    hiddenimports=[],
+    hiddenimports=['CTkToolTip'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

@@ -28,3 +28,6 @@ Thumbs.db
 *.tar.gz
 *.rar
 *.exe
+
+# Original Assets
+assets/*_Button.png

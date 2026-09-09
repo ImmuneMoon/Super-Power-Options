@@ -71,15 +71,16 @@ class PowerManager:
 
     def execute_action(self):
         # System calls for each power state. Windows-only.
+        CREATE_NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
         if self.action == 'sleep':
             # SetSuspendState(bHibernate, bForce, bWakeupEventsDisabled)
             ctypes.windll.powrprof.SetSuspendState(False, False, False)
         elif self.action == 'hibernate':
             ctypes.windll.powrprof.SetSuspendState(True, False, False)
         elif self.action == 'restart':
-            os.system("shutdown /r /t 0")
+            subprocess.run(["shutdown", "/r", "/t", "0"], creationflags=CREATE_NO_WINDOW)
         elif self.action == 'shutdown':
-            os.system("shutdown /s /t 0")
+            subprocess.run(["shutdown", "/s", "/t", "0"], creationflags=CREATE_NO_WINDOW)
 
     def _play_sound(self):
         # Attempts to play an alert sound cross-platform

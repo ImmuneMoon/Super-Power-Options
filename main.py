@@ -4,6 +4,7 @@
 
 import sys
 import os
+import subprocess
 
 # Check if this script is being run directly (not imported as a module)
 if __name__ == '__main__':
@@ -11,7 +12,12 @@ if __name__ == '__main__':
     if getattr(sys, 'frozen', False):
         exe_name = os.path.basename(sys.executable)
         current_pid = os.getpid()
-        os.system(f'taskkill /F /FI "PID ne {current_pid}" /IM "{exe_name}" 2>nul')
+        subprocess.run(
+            ['taskkill', '/F', '/FI', f'PID ne {current_pid}', '/IM', exe_name],
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000),
+            stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL
+        )
 
     # Import the main application class from the UI module
     from PowerApp.PowerUI import PowerApp
