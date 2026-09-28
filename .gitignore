@@ -31,3 +31,6 @@ Thumbs.db
 
 # Original Assets
 assets/*_Button.png
+
+# Editor settings
+.vscode/

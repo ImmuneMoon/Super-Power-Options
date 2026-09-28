@@ -23,14 +23,13 @@ And it lets you do it in **seconds, minutes, or hours**. Built with a sleek dark
 - **Silent Execution**: Background commands execute completely invisibly (no command-prompt flashes).
 
 ## 🎮 How to Use It
-1. Run `dist/Super Power Options.exe` (or `python main.py` if running from source).
+1. Download `Super.Power.Options.exe` from the
+   [latest release](https://github.com/ImmuneMoon/Super-Power-Options/releases/latest) and run it.
+   If you are running from source, use `python main.py` instead.
 2. Type a number and pick a time unit, or use one of the quick presets (15m, 30m, 1h, 2h).
 3. Click the icon for what you want to happen.
 4. Watch the progress bar count down.
 5. Cancel at any time if you change your mind!
-
----
-© 2026 Fulllion Creative Works. All rights reserved.
 
 ## 📁 Project Structure
 ```text
@@ -62,7 +61,7 @@ python -m PyInstaller Super_Power_Options.spec
 The output `.exe` will appear in the `/dist` directory with all required assets embedded.
 
 ## 📜 License
-MIT License
+Released under the [MIT License](LICENSE).
 
 
 ## ☕ Support the Project
