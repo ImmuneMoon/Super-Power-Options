@@ -89,4 +89,5 @@ else:
         codesign_identity=None,
         entitlements_file=None,
         icon=ICON,
+        version='version.txt' if IS_WIN and os.path.exists('version.txt') else None,
     )
