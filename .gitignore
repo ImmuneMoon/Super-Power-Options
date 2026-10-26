@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 
 # Virtual environments
+.venv/
 venv/
 env/
 ENV/
@@ -23,14 +24,14 @@ dist/
 .DS_Store
 Thumbs.db
 
+# IDE / Editor
+.vscode/
+.idea/
+
 # Archives and build artifacts
 *.zip
 *.tar.gz
 *.rar
 *.exe
 
-# Original Assets
-assets/*_Button.png
-
-# Editor settings
-.vscode/
+# (Button PNGs in assets/ are needed at runtime and by CI builds, so they're tracked)

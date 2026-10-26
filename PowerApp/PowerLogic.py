@@ -4,9 +4,8 @@
 
 import os
 import time
-import platform
-import subprocess
-import ctypes
+
+from PowerApp import PowerPlatform
 
 class PowerManager:
     def __init__(self, app):
@@ -16,6 +15,7 @@ class PowerManager:
         self.cancel_flag = False  # Used to bail out of countdown if user cancels
         self.action = None  # What are we doing? Action to perform: 'sleep', 'hibernate', 'restart', or 'shutdown'
         self.timer_running = False
+        self.keep_awake = PowerPlatform.KeepAwake()  # OS-specific "don't fall asleep on me" helper
 
     def set_action(self, action):
         self.action = action  # Store the desired action
@@ -32,10 +32,7 @@ class PowerManager:
         self.target_time = time.time() + self.timer_seconds
         
         # Prevent sleep while timer is running
-        if platform.system() == "Windows":
-            ES_CONTINUOUS = 0x80000000
-            ES_SYSTEM_REQUIRED = 0x00000001
-            ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)
+        self.keep_awake.start()
         
         self.app.on_timer_started() # Notify UI that timer started
 
@@ -62,33 +59,20 @@ class PowerManager:
             self.execute_action()  # Trigger the system-level event
 
     def _restore_sleep(self):
-        if platform.system() == "Windows":
-            ES_CONTINUOUS = 0x80000000
-            ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)
+        self.keep_awake.stop()
 
     def cancel(self):
         self.cancel_flag = True  # Abort countdown execution. User said "Wait I played games instead of doing my homework, I've actually gotta be up all night now"
 
     def execute_action(self):
-        # System calls for each power state. Windows-only.
-        CREATE_NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
-        if self.action == 'sleep':
-            # SetSuspendState(bHibernate, bForce, bWakeupEventsDisabled)
-            ctypes.windll.powrprof.SetSuspendState(False, False, False)
-        elif self.action == 'hibernate':
-            ctypes.windll.powrprof.SetSuspendState(True, False, False)
-        elif self.action == 'restart':
-            subprocess.run(["shutdown", "/r", "/t", "0"], creationflags=CREATE_NO_WINDOW)
-        elif self.action == 'shutdown':
-            subprocess.run(["shutdown", "/s", "/t", "0"], creationflags=CREATE_NO_WINDOW)
+        # Detects the OS / desktop and tries each known method until one works.
+        ok, detail = PowerPlatform.perform(self.action)
+        if ok:
+            print(f"[INFO] {self.action} via {detail}")
+        else:
+            print(f"[ERROR] {detail}")
+            self.app.on_action_failed(detail)
 
     def _play_sound(self):
-        # Attempts to play an alert sound cross-platform
         sound_path = os.path.join(os.path.dirname(__file__), "..", "assets", "alert.wav")
-        if platform.system() == "Windows":
-            import winsound
-            if os.path.exists(sound_path):
-                winsound.PlaySound(sound_path, winsound.SND_FILENAME)
-        else:
-            if os.path.exists(sound_path):
-                subprocess.call(["aplay", sound_path])
+        PowerPlatform.play_sound(sound_path)

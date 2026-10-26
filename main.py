@@ -5,11 +5,12 @@
 import sys
 import os
 import subprocess
+import tempfile
 
-# Check if this script is being run directly (not imported as a module)
-if __name__ == '__main__':
-    # Ensure only one instance of the compiled exe runs at a time
-    if getattr(sys, 'frozen', False):
+
+def close_previous_instance():
+    """Ensure only one instance of the compiled app runs at a time (any OS)."""
+    if os.name == "nt":
         exe_name = os.path.basename(sys.executable)
         current_pid = os.getpid()
         subprocess.run(
@@ -18,6 +19,32 @@ if __name__ == '__main__':
             stderr=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL
         )
+        return
+    # macOS / Linux: PID file in the temp dir
+    import signal
+    pid_file = os.path.join(tempfile.gettempdir(), f"super_power_options_{os.getuid()}.pid")
+    try:
+        with open(pid_file) as f:
+            old_pid = int(f.read().strip())
+        if old_pid != os.getpid():
+            # Only kill it if that PID is still *this* app (PIDs get reused)
+            comm = subprocess.run(["ps", "-p", str(old_pid), "-o", "comm="],
+                                  capture_output=True, text=True).stdout.strip()
+            if comm and os.path.basename(comm) == os.path.basename(sys.executable)[:len(os.path.basename(comm))]:
+                os.kill(old_pid, signal.SIGTERM)
+    except (OSError, ValueError):
+        pass  # No previous instance (or it's already gone)
+    try:
+        with open(pid_file, "w") as f:
+            f.write(str(os.getpid()))
+    except OSError:
+        pass
+
+
+# Check if this script is being run directly (not imported as a module)
+if __name__ == '__main__':
+    if getattr(sys, 'frozen', False):
+        close_previous_instance()
 
     # Import the main application class from the UI module
     from PowerApp.PowerUI import PowerApp

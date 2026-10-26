@@ -3,12 +3,19 @@
 
 import os
 import sys
+import time
+from datetime import datetime, timedelta
 import customtkinter as ctk
-from tkinter import messagebox
+from tkinter import messagebox, PhotoImage
 from PowerApp.PowerLogic import PowerManager
-from pystray import Icon, MenuItem as item, Menu
+from PowerApp import PowerPlatform
 from PIL import Image
 from CTkToolTip import CTkToolTip
+
+try:
+    from pystray import Icon, MenuItem as item, Menu
+except Exception:  # No usable tray backend on this system (e.g. headless/Docker)
+    Icon = None
 
 def resource_path(relative_path):
     try:
@@ -24,53 +31,82 @@ class PowerApp:
         
         self.root = ctk.CTk() # Main application window
         self.root.title("⚡ Super Power Options ⚡")
-        self.root.geometry("650x550")
+        self.root.geometry("650x600")
         self.root.resizable(False, False)
         
         self.manager = PowerManager(self)
         self.load_icon()
         self.build_ui()
+        self.tray_enabled = False
         self.init_tray_icon()
         self.root.protocol("WM_DELETE_WINDOW", self.hide_to_tray)
+        print(f"[INFO] Running on {PowerPlatform.describe_system()} (tray: {'on' if self.tray_enabled else 'off'})")
 
     def init_tray_icon(self):
+        if Icon is None or not PowerPlatform.tray_supported():
+            return
         try:
             icon_image = Image.open(resource_path("assets/icon.ico"))
         except Exception:
             # Fallback if no icon
             icon_image = Image.new('RGB', (64, 64), color='black')
-        self.tray_icon = Icon(
-            "SuperPowerOptions",
-            icon_image,
-            title="Super Power Options",
-            menu=Menu(
-                item("Show App", lambda: self.restore_window(), default=True),
-                item("Cancel Timer", lambda: self.cancel_timer(), visible=lambda _: getattr(self.manager, 'timer_running', False)),
-                item("Exit", lambda: self.exit_app())
+        try:
+            self.tray_icon = Icon(
+                "SuperPowerOptions",
+                icon_image,
+                title="Super Power Options",
+                menu=Menu(
+                    item("Show App", lambda: self.root.after(0, self.restore_window), default=True),
+                    item("Cancel Timer", lambda: self.root.after(0, self.cancel_timer), visible=lambda _: getattr(self.manager, 'timer_running', False)),
+                    item("Exit", lambda: self.root.after(0, self.exit_app))
+                )
             )
-        )
-        self.tray_icon.run_detached()
+            self.tray_icon.run_detached()
+            self.tray_enabled = True
+        except Exception as e:
+            print(f"[WARN] Tray icon unavailable: {e}")
+            if hasattr(self, 'tray_icon'):
+                del self.tray_icon
 
     def load_icon(self):
-        app_icon_path = resource_path("assets/icon.ico")
-        if os.path.exists(app_icon_path):
+        if PowerPlatform.detect_os() == "windows":
+            app_icon_path = resource_path("assets/icon.ico")
+            if os.path.exists(app_icon_path):
+                try:
+                    self.root.iconbitmap(app_icon_path)
+                except Exception as e:
+                    print(f"[WARN] Failed to load icon: {e}")
+            else:
+                print("[WARN] icon.ico not found at runtime")
+            return
+        # macOS / Linux: Tk can't use .ico files, so use the PNG
+        png_path = resource_path("assets/icon.png")
+        if os.path.exists(png_path):
             try:
-                self.root.iconbitmap(app_icon_path)
+                self._icon_photo = PhotoImage(file=png_path)  # keep a reference so it isn't garbage-collected
+                self.root.iconphoto(True, self._icon_photo)
             except Exception as e:
                 print(f"[WARN] Failed to load icon: {e}")
-        else:
-            print("[WARN] icon.ico not found at runtime")
 
     def hide_to_tray(self):
-        self.root.withdraw()  # Hide window
+        if self.tray_enabled:
+            self.root.withdraw()  # Hide window; it lives on in the tray
+        else:
+            self.root.iconify()  # No tray here, so minimize instead of vanishing
 
     def restore_window(self):
         self.root.deiconify()
+        self.root.lift()
 
     def exit_app(self):
+        self.manager.keep_awake.stop()
         if hasattr(self, 'tray_icon'):
             self.tray_icon.stop()
         self.root.quit()
+
+    def on_action_failed(self, message):
+        self.restore_window()
+        self.show_custom_message("Action Failed", message, is_error=True)
 
     def build_ui(self):
         # Load button images
@@ -94,10 +130,23 @@ class PowerApp:
         self.setup_frame.pack(fill="both", expand=True)
         
         # Title
-        ctk.CTkLabel(self.setup_frame, text="Set Timer", font=ctk.CTkFont(size=24, weight="bold")).pack(pady=(0, 20))
+        self.title_label = ctk.CTkLabel(self.setup_frame, text="Set Timer", font=ctk.CTkFont(size=24, weight="bold"))
+        self.title_label.pack(pady=(0, 10))
         
-        # Custom time input
-        input_frame = ctk.CTkFrame(self.setup_frame, fg_color="transparent")
+        # Mode switch: countdown timer vs. specific date/time
+        self.mode_switch = ctk.CTkSegmentedButton(self.setup_frame, values=["Timer", "Date & Time"], command=self.on_mode_change, font=ctk.CTkFont(size=14))
+        self.mode_switch.set("Timer")
+        self.mode_switch.pack(pady=(0, 10))
+        
+        # Holder keeps the swappable input/preset area in a fixed spot above the action buttons
+        self.mode_holder = ctk.CTkFrame(self.setup_frame, fg_color="transparent")
+        self.mode_holder.pack(fill="x")
+        
+        # ---- Timer mode ----
+        self.timer_mode_frame = ctk.CTkFrame(self.mode_holder, fg_color="transparent")
+        self.timer_mode_frame.pack()
+        
+        input_frame = ctk.CTkFrame(self.timer_mode_frame, fg_color="transparent")
         input_frame.pack(pady=10)
         
         self.time_entry = ctk.CTkEntry(input_frame, width=100, font=ctk.CTkFont(size=16), justify="center")
@@ -108,8 +157,7 @@ class PowerApp:
         self.unit_combobox.set("minutes")
         self.unit_combobox.pack(side="left")
         
-        # Presets
-        presets_frame = ctk.CTkFrame(self.setup_frame, fg_color="transparent")
+        presets_frame = ctk.CTkFrame(self.timer_mode_frame, fg_color="transparent")
         presets_frame.pack(pady=20)
         
         ctk.CTkButton(presets_frame, text="15 Min", width=80, command=lambda: self.set_preset(15, "minutes")).pack(side="left", padx=5)
@@ -117,9 +165,42 @@ class PowerApp:
         ctk.CTkButton(presets_frame, text="1 Hour", width=80, command=lambda: self.set_preset(1, "hours")).pack(side="left", padx=5)
         ctk.CTkButton(presets_frame, text="2 Hours", width=80, command=lambda: self.set_preset(2, "hours")).pack(side="left", padx=5)
         
+        # ---- Date & Time mode ----
+        self.date_mode_frame = ctk.CTkFrame(self.mode_holder, fg_color="transparent")
+        
+        dt_input = ctk.CTkFrame(self.date_mode_frame, fg_color="transparent")
+        dt_input.pack(pady=10)
+        
+        self.date_entry = ctk.CTkEntry(dt_input, width=130, font=ctk.CTkFont(size=16), justify="center", placeholder_text="YYYY-MM-DD")
+        self.date_entry.pack(side="left", padx=(0, 15))
+        CTkToolTip(self.date_entry, message="Date (YYYY-MM-DD)", delay=0.2)
+        
+        self.hour_combobox = ctk.CTkComboBox(dt_input, width=70, values=[str(h) for h in range(1, 13)], font=ctk.CTkFont(size=16), justify="center")
+        self.hour_combobox.pack(side="left")
+        ctk.CTkLabel(dt_input, text=":", font=ctk.CTkFont(size=18, weight="bold")).pack(side="left", padx=4)
+        self.minute_combobox = ctk.CTkComboBox(dt_input, width=70, values=[f"{m:02d}" for m in range(0, 60, 5)], font=ctk.CTkFont(size=16), justify="center")
+        self.minute_combobox.pack(side="left", padx=(0, 10))
+        
+        self.ampm_switch = ctk.CTkSegmentedButton(dt_input, values=["AM", "PM"], font=ctk.CTkFont(size=14))
+        self.ampm_switch.pack(side="left")
+        
+        dt_presets = ctk.CTkFrame(self.date_mode_frame, fg_color="transparent")
+        dt_presets.pack(pady=(10, 0))
+        
+        ctk.CTkButton(dt_presets, text="Today", width=80, command=lambda: self.set_date_preset(day_offset=0)).pack(side="left", padx=5)
+        ctk.CTkButton(dt_presets, text="Tomorrow", width=80, command=lambda: self.set_date_preset(day_offset=1)).pack(side="left", padx=5)
+        ctk.CTkButton(dt_presets, text="11 PM", width=80, command=lambda: self.set_date_preset(hour24=23)).pack(side="left", padx=5)
+        ctk.CTkButton(dt_presets, text="Midnight", width=80, command=lambda: self.set_date_preset(hour24=0)).pack(side="left", padx=5)
+        
+        # Live preview of how far away the chosen moment is
+        self.dt_preview_label = ctk.CTkLabel(self.date_mode_frame, text="", font=ctk.CTkFont(size=13), text_color="gray70")
+        self.dt_preview_label.pack(pady=(8, 0))
+        
+        self.reset_datetime_inputs()
+        
         # Action Buttons
         actions_frame = ctk.CTkFrame(self.setup_frame, fg_color="transparent")
-        actions_frame.pack(pady=30)
+        actions_frame.pack(pady=20)
         
         sleep_btn = ctk.CTkButton(actions_frame, text="", image=self.sleep_img, width=80, height=80, fg_color="transparent", hover_color="gray25", command=lambda: self.confirm_and_start('sleep'))
         sleep_btn.grid(row=0, column=0, padx=15, pady=15)
@@ -141,7 +222,10 @@ class PowerApp:
         self.timer_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         
         self.action_label = ctk.CTkLabel(self.timer_frame, text="", font=ctk.CTkFont(size=20))
-        self.action_label.pack(pady=(30, 10))
+        self.action_label.pack(pady=(30, 4))
+        
+        self.target_label = ctk.CTkLabel(self.timer_frame, text="", font=ctk.CTkFont(size=14), text_color="gray70")
+        self.target_label.pack(pady=(0, 6))
         
         self.timer_label = ctk.CTkLabel(self.timer_frame, text="00:00:00", font=ctk.CTkFont(family="Courier New", size=64, weight="bold"))
         self.timer_label.pack(pady=20)
@@ -158,6 +242,86 @@ class PowerApp:
         self.time_entry.delete(0, 'end')
         self.time_entry.insert(0, str(value))
         self.unit_combobox.set(unit)
+
+    # ---------- Date & Time mode helpers ----------
+
+    def on_mode_change(self, mode):
+        if mode == "Date & Time":
+            self.timer_mode_frame.pack_forget()
+            self.date_mode_frame.pack()
+            self.title_label.configure(text="Schedule Date & Time")
+            self.update_datetime_preview()
+        else:
+            self.date_mode_frame.pack_forget()
+            self.timer_mode_frame.pack()
+            self.title_label.configure(text="Set Timer")
+
+    def _fill_datetime_inputs(self, dt):
+        self.date_entry.delete(0, 'end')
+        self.date_entry.insert(0, dt.strftime("%Y-%m-%d"))
+        self.hour_combobox.set(str(int(dt.strftime("%I"))))
+        self.minute_combobox.set(dt.strftime("%M"))
+        self.ampm_switch.set(dt.strftime("%p").upper())
+
+    def reset_datetime_inputs(self):
+        # Default: one hour from now, rounded up to the next 5 minutes
+        dt = datetime.now() + timedelta(hours=1)
+        dt = dt.replace(second=0, microsecond=0)
+        dt += timedelta(minutes=(5 - dt.minute % 5) % 5)
+        self._fill_datetime_inputs(dt)
+
+    def set_date_preset(self, day_offset=None, hour24=None):
+        now = datetime.now()
+        current = self.parse_target_datetime(silent=True) or now
+        if day_offset is not None:
+            # Keep the chosen time, change only the date
+            day = (now + timedelta(days=day_offset)).date()
+            current = current.replace(year=day.year, month=day.month, day=day.day)
+        if hour24 is not None:
+            # Next occurrence of that clock time
+            current = now.replace(hour=hour24, minute=0, second=0, microsecond=0)
+            if current <= now:
+                current += timedelta(days=1)
+        self._fill_datetime_inputs(current)
+        self.update_datetime_preview()
+
+    def parse_target_datetime(self, silent=False):
+        """Returns a datetime from the date/time inputs, or None if invalid."""
+        try:
+            date_str = self.date_entry.get().strip()
+            hour = int(self.hour_combobox.get().strip())
+            minute = int(self.minute_combobox.get().strip())
+            ampm = self.ampm_switch.get() or "AM"
+            if not (1 <= hour <= 12 and 0 <= minute <= 59):
+                raise ValueError
+            return datetime.strptime(f"{date_str} {hour}:{minute:02d} {ampm}", "%Y-%m-%d %I:%M %p")
+        except ValueError:
+            if not silent:
+                self.show_custom_message("Invalid Date/Time", "Please enter a valid date (YYYY-MM-DD) and time.", is_error=True)
+            return None
+
+    def update_datetime_preview(self):
+        if self.mode_switch.get() != "Date & Time":
+            return
+        dt = self.parse_target_datetime(silent=True)
+        if dt is None:
+            self.dt_preview_label.configure(text="Enter a valid date and time", text_color="#E74C3C")
+        else:
+            delta = int((dt - datetime.now()).total_seconds())
+            if delta <= 0:
+                self.dt_preview_label.configure(text="That time is in the past", text_color="#E74C3C")
+            else:
+                d, rem = divmod(delta, 86400)
+                h, rem = divmod(rem, 3600)
+                m = rem // 60
+                parts = ([f"{d}d"] if d else []) + ([f"{h}h"] if h or d else []) + [f"{m}m"]
+                self.dt_preview_label.configure(text=f"{dt.strftime('%a, %b %d at %I:%M %p')}  •  in {' '.join(parts)}", text_color="gray70")
+        # Keep the preview fresh while the setup screen is visible
+        if not getattr(self, '_preview_job', None):
+            def _refresh():
+                self._preview_job = None
+                self.update_datetime_preview()
+            self._preview_job = self.root.after(1000, _refresh)
 
     def show_custom_message(self, title, text, on_confirm=None, is_error=False):
         dialog = ctk.CTkToplevel(self.root)
@@ -195,14 +359,37 @@ class PowerApp:
         def do_action():
             self.manager.set_action(action)
             self.start_timer()
+        
+        message = f"Are you sure you want to {action} the system?"
+        if self.mode_switch.get() == "Date & Time":
+            dt = self.parse_target_datetime()
+            if dt is None:
+                return
+            if dt <= datetime.now():
+                self.show_custom_message("Invalid Date/Time", "The selected date and time is in the past.", is_error=True)
+                return
+            message = f"Are you sure you want to {action} the system on {dt.strftime('%a, %b %d at %I:%M %p')}?"
             
         self.show_custom_message(
             "Confirm Action",
-            f"Are you sure you want to {action} the system?",
+            message,
             on_confirm=do_action
         )
 
     def start_timer(self):
+        if self.mode_switch.get() == "Date & Time":
+            dt = self.parse_target_datetime()
+            if dt is None:
+                return
+            seconds = dt.timestamp() - time.time()
+            if seconds <= 0:
+                self.show_custom_message("Invalid Date/Time", "The selected date and time is in the past.", is_error=True)
+                return
+            self.manager.set_timer(seconds)
+            self.total_seconds = int(seconds)
+            self.manager.start_countdown()
+            return
+
         try:
             val_str = self.time_entry.get().strip()
             if val_str == "1337":
@@ -238,6 +425,8 @@ class PowerApp:
             'shutdown': 'Shutting down in...'
         }
         self.action_label.configure(text=action_texts.get(self.manager.action, 'Action pending...'))
+        target_dt = datetime.fromtimestamp(self.manager.target_time)
+        self.target_label.configure(text=f"Scheduled for {target_dt.strftime('%a, %b %d, %Y at %I:%M:%S %p')}")
         self.setup_frame.pack_forget()
         self.timer_frame.pack(fill="both", expand=True)
         self.update_timer_loop()
@@ -281,6 +470,7 @@ class PowerApp:
             self.tray_icon.title = "Super Power Options"
         self.timer_frame.pack_forget()
         self.setup_frame.pack(fill="both", expand=True)
+        self.update_datetime_preview()
 
     def cancel_timer(self):
         if hasattr(self, 'tray_icon'):

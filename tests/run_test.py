@@ -1,5 +1,8 @@
 import os
+import sys
 import importlib.util
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 def load_test_modules():
     tests_dir = os.path.dirname(__file__)

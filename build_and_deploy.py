@@ -1,37 +1,32 @@
+# build_and_deploy.py
+# Native cross-platform build helper.
+#   python build_and_deploy.py            -> native build for THIS OS (PyInstaller) into dist/
+#   python build_and_deploy.py --check    -> print what the app detects about this system
+
+import sys
+import platform
 import subprocess
-import os
 from pathlib import Path
 
-# Define paths
-project_root = Path(__file__).parent.resolve()
-req_file = project_root / "requirements.txt"
-docker_req_file = project_root / "requirements-docker.txt"
-docker_image = "super-power-options"
+ROOT = Path(__file__).parent.resolve()
 
-print("[+] Ensuring dependencies are frozen correctly...")
-# Ensure necessary packages are installed before freezing
-subprocess.run(["pip", "install", "pystray", "pillow", "pyinstaller"])
 
-# Generate a fresh requirements.txt
-with open(req_file, "w") as f:
-    subprocess.run(["pip", "freeze"], stdout=f)
+def run(cmd):
+    print(f"[>] {' '.join(cmd)}")
+    subprocess.run(cmd, check=True, cwd=ROOT)
 
-# Filter out Windows-only packages (e.g., pywin32) for Docker
-print("[+] Creating Docker-compatible requirements-docker.txt...")
-if req_file.exists():
-    with open(req_file, "r") as f:
-        lines = f.readlines()
-    with open(docker_req_file, "w") as f:
-        f.writelines([line for line in lines if "pywin32" not in line])
-else:
-    docker_req_file.write_text("")
 
-# Build Docker image
-print(f"[+] Building Docker image '{docker_image}'...")
-subprocess.run(["docker", "build", "-t", docker_image, "."], check=True)
+def native_build():
+    run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt", "pyinstaller"])
+    run([sys.executable, "-m", "PyInstaller", "--noconfirm", "Super_Power_Options.spec"])
+    out = {"Windows": "dist/Super Power Options.exe", "Darwin": "dist/Super Power Options.app"}.get(
+        platform.system(), "dist/Super Power Options")
+    print(f"[OK] Built {out}")
 
-# Run Docker container
-print(f"[*] Running Docker container '{docker_image}'...")
-subprocess.run(["docker", "run", "--rm", docker_image], check=True)
 
-print("[✓] Done!")
+if __name__ == "__main__":
+    args = set(sys.argv[1:])
+    if "--check" in args:
+        run([sys.executable, "-m", "PowerApp.PowerPlatform"])
+    else:
+        native_build()

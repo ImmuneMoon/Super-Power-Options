@@ -16,18 +16,30 @@ def run():
     path = os.path
     icon_path = resource_path("assets/icon.ico")
     exists = os.path.exists(icon_path)
-    print(f"[RESULT] Icon file exists: {'✅' if exists else '❌'}")
-
-    try:
-        root = tk.Tk()
-        root.iconbitmap(icon_path)
-        root.withdraw()
-        root.destroy()
-        print("[RESULT] iconbitmap loaded successfully ✅")
+    print(f"[RESULT] Icon file exists: {'[OK]' if exists else '[MISSING]'}")
+    if exists:
         passed += 1
-    except Exception as e:
-        print(f"[ERROR] iconbitmap failed ❌ -> {e}")
-        return False
+    else:
         failed += 1
+
+    png_path = resource_path("assets/icon.png")
+    png_exists = os.path.exists(png_path)
+    print(f"[RESULT] PNG icon exists: {'[OK]' if png_exists else '[MISSING]'}")
+    if png_exists:
+        passed += 1
+    else:
+        failed += 1
+
+    if sys.platform == "win32" and exists:
+        try:
+            root = tk.Tk()
+            root.iconbitmap(icon_path)
+            root.withdraw()
+            root.destroy()
+            print("[RESULT] iconbitmap loaded successfully [OK]")
+            passed += 1
+        except Exception as e:
+            print(f"[ERROR] iconbitmap failed [FAIL] -> {e}")
+            failed += 1
 
     return passed, failed

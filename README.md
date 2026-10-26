@@ -5,28 +5,39 @@ Because some of us want style, and others want a server to shut down *on schedul
 ---
 
 ## 💣 What is This?
-A stylish Python desktop app that lets you schedule your Windows PC to:
+A stylish Python desktop app that lets you schedule your **Windows, macOS or Linux** machine to:
 - 🌙 **Sleep**
 - ❄️ **Hibernate**
 - 🔄 **Restart**
 - 🔌 **Shutdown**
 
-And it lets you do it in **seconds, minutes, or hours**. Built with a sleek dark-mode UI, quick preset buttons, a visual progress bar, and precise Windows API integration.
+Set a countdown (**seconds to years**) or pick an exact **date & time**. Built with a sleek dark-mode UI, quick preset buttons and a visual progress bar. It detects your OS and desktop environment and uses the right power commands for it.
 
 ## 🚀 Features
 
 - **Modern Dark Mode UI**: Powered by `customtkinter` with rounded buttons and fluid state changes.
+- **Timer or Date & Time**: Count down from a duration, or schedule an exact moment.
 - **Precision Timing**: Avoids drift by calculating deltas against real UNIX timestamps.
-- **Accurate Power States**: Uses direct Windows API calls (`ctypes.windll.powrprof.SetSuspendState`) to cleanly differentiate between Sleep and Hibernate.
-- **Single-Instance Enforcement**: Launching a new instance will automatically cleanly close any previously running instance in the background.
-- **Keeps Windows Awake**: Actively prevents Windows from unexpectedly entering idle sleep while your countdown is ticking.
-- **Silent Execution**: Background commands execute completely invisibly (no command-prompt flashes).
+- **Cross-Platform Power Control**: Detects the OS and desktop and tries the best method first, falling back automatically (see table below).
+- **Single-Instance Enforcement**: Launching a new instance closes any previously running one.
+- **Keeps the Machine Awake**: Prevents idle sleep while the countdown runs (`SetThreadExecutionState` / `caffeinate` / `systemd-inhibit`).
+- **Tray Icon** where the desktop supports one; otherwise closing the window just minimizes it.
+- **Silent Execution**: Background commands run without console flashes.
+
+### How each OS is handled
+
+| System | Sleep / Hibernate | Restart / Shutdown |
+|---|---|---|
+| Windows | `SetSuspendState` (Win32 API) | `shutdown /r` / `shutdown /s` |
+| macOS | `pmset sleepnow` (hibernate = sleep; macOS has no separate user hibernate) | System Events (AppleScript), then `shutdown` |
+| Linux – GNOME, Cinnamon, Budgie, KDE, XFCE, LXQt | desktop command where one exists, then `systemctl` | session command (closes apps gracefully), then `systemctl` |
+| Linux – other / non-systemd | `systemctl` → `loginctl` (elogind) → logind over D-Bus → `pm-utils` | `systemctl` → `loginctl` → D-Bus → `shutdown` |
+
+Run `python build_and_deploy.py --check` to see exactly what will be used on your machine.
 
 ## 🎮 How to Use It
-1. Download `Super.Power.Options.exe` from the
-   [latest release](https://github.com/ImmuneMoon/Super-Power-Options/releases/latest) and run it.
-   If you are running from source, use `python main.py` instead.
-2. Type a number and pick a time unit, or use one of the quick presets (15m, 30m, 1h, 2h).
+1. Run the app for your OS (see *Downloads* below), or `python main.py` from source.
+2. Choose **Timer** (number + unit, or a preset) or **Date & Time** (date, hour, minute, AM/PM).
 3. Click the icon for what you want to happen.
 4. Watch the progress bar count down.
 5. Cancel at any time if you change your mind!
@@ -34,42 +45,35 @@ And it lets you do it in **seconds, minutes, or hours**. Built with a sleek dark
 ## 📁 Project Structure
 ```text
 Super Power Options/
-├── main.py               # Launch point and single-instance enforcer
+├── main.py                  # Launch point and single-instance enforcer
 ├── PowerApp/
-│   ├── PowerUI.py        # CustomTkinter GUI layer
-│   └── PowerLogic.py     # Timer, threading, and system-level execution logic
-├── assets/               # Vector SVGs, raw PNGs, and optional .wav alerts
-├── Super_Power_Options.spec # PyInstaller configuration
+│   ├── PowerUI.py           # CustomTkinter GUI layer
+│   ├── PowerLogic.py        # Timer / countdown logic
+│   └── PowerPlatform.py     # OS + desktop detection, power commands, keep-awake, sound
+├── assets/                  # Icons, button PNGs and the alert .wav
+├── Super_Power_Options.spec # PyInstaller config (Windows / macOS / Linux)
+├── .github/workflows/build.yml  # CI: builds all three OSes
 └── README.md
 ```
 
-## 🔧 Requirements
-- Python 3.8+
-- Windows OS (Requires Windows APIs)
-- `customtkinter`, `pillow`, `pystray`, `pywin32`
+## 🔧 Requirements (running from source)
+- Python 3.10+ with tkinter
+  - Linux: install `python3-tk` from your package manager if it's missing
+- `pip install -r requirements.txt` (`pywin32` is installed on Windows only)
+- Linux tray icon on GNOME needs the *AppIndicator* extension; without it the window minimizes instead.
 
-Install dependencies using:
-```bash
-pip install -r requirements.txt
-```
+## 📦 Downloads / Builds
 
-## 🛠️ Build Instructions
-To build your own standalone executable without needing a Python environment:
+**GitHub Actions** builds every push on Windows, macOS and Linux runners (see the *Actions* tab → artifacts). Pushing a tag like `v1.2.0` attaches all three to a GitHub Release.
+
+**Build locally** (PyInstaller can only build for the OS it's running on):
 ```bash
-python -m PyInstaller Super_Power_Options.spec
+python build_and_deploy.py
 ```
-The output `.exe` will appear in the `/dist` directory with all required assets embedded.
+Output: `dist/Super Power Options.exe` (Windows), `dist/Super Power Options.app` (macOS), `dist/Super Power Options` (Linux).
+
+> **macOS:** the app isn't code-signed, so the first launch needs right-click → *Open*. Restart/Shutdown will ask for permission to control *System Events*.
+
 
 ## 📜 License
-Released under the [MIT License](LICENSE).
-
-
-## ☕ Support the Project
-
-If you find this project helpful and want to support further development by Fulllion Creative Works, consider leaving a tip!
-
-* [Donate via PayPal](https://www.paypal.com/donate/?hosted_button_id=LCDZX75HR4CLC)
-* [Support on Ko-fi](https://ko-fi.com/fulllion)
-
----
-© 2026 Fulllion Creative Works. All rights reserved.
+MIT License
