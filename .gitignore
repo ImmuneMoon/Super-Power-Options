@@ -27,6 +27,7 @@ Thumbs.db
 # IDE / Editor
 .vscode/
 .idea/
+CLAUDE.md
 
 # Archives and build artifacts
 *.zip
